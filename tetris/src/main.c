@@ -1,3 +1,4 @@
+#include <commons/collections/list.h>
 #include <commons/log.h>
 #include <curses.h>
 #include <pthread.h>
@@ -8,7 +9,7 @@
 
 #define ROWS 20
 #define COLUMNS 15
-#define FRAME_RATE 2
+#define FRAME_RATE 10
 
 typedef struct {
   int positions[4][2];
@@ -79,62 +80,129 @@ void get_piece(int buffer[4][2]) {
 
 void player_intialize() { get_piece(player.positions); }
 
-void player_move(move_t m) {
+int player_move(move_t m) {
   switch (m) {
   case LEFT: {
+    t_list *min_cols = list_create();
+    t_list *min_cols_rows = list_create();
     int min_col = COLUMNS;
     for (int i = 0; i < 4; i++) {
       if (player.positions[i][1] < min_col) {
+        if (list_size(min_cols) > 0) {
+          list_clean(min_cols);
+          list_clean(min_cols_rows);
+        }
         min_col = player.positions[i][1];
       }
+      if (player.positions[i][1] > min_col)
+        continue;
+      list_add(min_cols, &(player.positions[i][1]));
+      list_add(min_cols_rows, &(player.positions[i][0]));
     }
     if (min_col > 0) {
+      for (int i = 0; i < list_size(min_cols); i++) {
+        int *col = list_get(min_cols, i);
+        int *row = list_get(min_cols_rows, i);
+        if (board[*row][*col - 1] == 1) {
+          list_destroy(min_cols);
+          list_destroy(min_cols_rows);
+          return 1;
+        }
+      }
+      list_destroy(min_cols);
+      list_destroy(min_cols_rows);
       for (int i = 0; i < 4; i++) {
         int prev_row = player.positions[i][0];
         int prev_col = player.positions[i][1];
         player.positions[i][1]--;
         board[prev_row][prev_col] = 0;
       }
+      return 0;
     }
     break;
   }
 
   case RIGHT: {
+    t_list *max_cols = list_create();
+    t_list *max_cols_rows = list_create();
     int max_col = 0;
     for (int i = 0; i < 4; i++) {
       if (player.positions[i][1] > max_col) {
+        if (list_size(max_cols) > 0) {
+          list_clean(max_cols);
+          list_clean(max_cols_rows);
+        }
         max_col = player.positions[i][1];
       }
+      if (player.positions[i][1] < max_col)
+        continue;
+      list_add(max_cols, &(player.positions[i][1]));
+      list_add(max_cols_rows, &(player.positions[i][0]));
     }
     if (max_col < COLUMNS - 1) {
+      for (int i = 0; i < list_size(max_cols); i++) {
+        int *col = list_get(max_cols, i);
+        int *row = list_get(max_cols_rows, i);
+        if (board[*row][*col + 1] == 1) {
+          list_destroy(max_cols);
+          list_destroy(max_cols_rows);
+          return 1;
+        }
+      }
+      list_destroy(max_cols);
+      list_destroy(max_cols_rows);
       for (int i = 0; i < 4; i++) {
         int prev_row = player.positions[i][0];
         int prev_col = player.positions[i][1];
         player.positions[i][1]++;
         board[prev_row][prev_col] = 0;
       }
+      return 0;
     }
     break;
   }
 
   case DOWN: {
+    t_list *max_rows = list_create();
+    t_list *max_rows_cols = list_create();
     int max_row = 0;
     for (int i = 0; i < 4; i++) {
       if (player.positions[i][0] > max_row) {
+        if (list_size(max_rows) > 0) {
+          list_clean(max_rows);
+          list_clean(max_rows_cols);
+        }
         max_row = player.positions[i][0];
       }
+      if (player.positions[i][0] < max_row)
+        continue;
+      list_add(max_rows, &(player.positions[i][0]));
+      list_add(max_rows_cols, &(player.positions[i][1]));
     }
     if (max_row < ROWS - 1) {
+      for (int i = 0; i < list_size(max_rows); i++) {
+        int *row = list_get(max_rows, i);
+        int *col = list_get(max_rows_cols, i);
+        if (board[*row + 1][*col] == 1) {
+          list_destroy(max_rows);
+          list_destroy(max_rows_cols);
+          return 1;
+        }
+      }
+      list_destroy(max_rows);
+      list_destroy(max_rows_cols);
       for (int i = 0; i < 4; i++) {
         int prev_row = player.positions[i][0];
         int prev_col = player.positions[i][1];
         player.positions[i][0]++;
         board[prev_row][prev_col] = 0;
       }
+      return 0;
     }
     break;
   }
   }
+  return 1;
 }
 
 void *user_input() {
@@ -163,7 +231,9 @@ int main(int argc, char *argv[]) {
 
   while (1) {
     clear_screen();
-    player_move(DOWN);
+    int colided = player_move(DOWN);
+    if (colided)
+      player_intialize();
 
     update_board();
     print_board();

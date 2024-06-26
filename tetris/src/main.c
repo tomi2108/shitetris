@@ -1,4 +1,3 @@
-#include <commons/log.h>
 #include <curses.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -16,6 +15,7 @@
 
 typedef enum { LEFT, RIGHT, DOWN } move_t;
 typedef enum { NORTH, EAST, SOUTH, WEST } rotation_t;
+typedef enum { LOST, RUNNING } game_state_t;
 
 typedef struct {
   int position[2];
@@ -26,8 +26,7 @@ typedef struct {
   int score;
 } player_t;
 
-t_log *logger;
-
+game_state_t game_state;
 int board[ROWS][COLUMNS];
 player_t player;
 
@@ -318,6 +317,8 @@ void clear_screen() {
 }
 
 void reset_game() {
+  player.piece = rand() % 7;
+  game_state = RUNNING;
   player.score = 0;
   for (int i = 0; i < ROWS; i++) {
     for (int j = 0; j < COLUMNS; j++) {
@@ -546,16 +547,23 @@ void *user_input() {
   while (1) {
     char c = '\0';
     scanf("%c", &c);
-    if (c == 'h' || c == 'H')
-      player_move(LEFT);
-    if (c == 'j' || c == 'J')
-      player_move(DOWN);
-    if (c == 'k' || c == 'K')
-      player_move(RIGHT);
-    if (c == 'x' || c == 'X')
-      player_rotate(LEFT);
-    if (c == 'c' || c == 'C')
-      player_rotate(RIGHT);
+    if (game_state == RUNNING) {
+      if (c == 'h' || c == 'H')
+        player_move(LEFT);
+      if (c == 'j' || c == 'J')
+        player_move(DOWN);
+      if (c == 'k' || c == 'K')
+        player_move(RIGHT);
+      if (c == 'x' || c == 'X')
+        player_rotate(LEFT);
+      if (c == 'c' || c == 'C')
+        player_rotate(RIGHT);
+    }
+
+    if (game_state == LOST) {
+      if (c == 'r' || c == 'R')
+        reset_game();
+    }
   }
 }
 
@@ -571,14 +579,23 @@ int check_line(int *index) {
     }
     if (is_full == 0)
       continue;
+    *index = i;
     for (int j = 0; j < COLUMNS; j++) {
       board[i][j] = 0;
     }
-    *index = i;
     player.score += POINTS_PER_LINE;
     cleared++;
   }
   return cleared;
+};
+
+void check_lost() {
+  for (int j = 0; j < COLUMNS; j++) {
+    if (board[0][j] == 1) {
+      game_state = LOST;
+      return;
+    }
+  }
 };
 
 void move_board_down(int row_index, int rows) {
@@ -592,7 +609,6 @@ void move_board_down(int row_index, int rows) {
 };
 
 int main(int argc, char *argv[]) {
-  logger = log_create("tetris.log", "TETRIS", 1, LOG_LEVEL_DEBUG);
   pthread_mutex_init(&mutex_positions, NULL);
 
   srand(time(NULL));
@@ -606,24 +622,36 @@ int main(int argc, char *argv[]) {
   pthread_create(&input_thread, NULL, &user_input, NULL);
   pthread_detach(input_thread);
 
-  player.piece = rand() % 7;
   reset_game();
+
   while (1) {
-    clear_screen();
-    int colided = player_move(DOWN);
-    bb_to_board();
-    if (colided) {
-      set_player_piece();
-      player.piece = player.next_piece;
-      player_new_piece();
+    while (game_state == RUNNING) {
+      clear_screen();
+      int colided = player_move(DOWN);
       bb_to_board();
-      int last_line_index = 0;
-      int cleared_lines = check_line(&last_line_index);
-      move_board_down(last_line_index, cleared_lines);
+      if (colided) {
+        set_player_piece();
+        int last_line_index = 0;
+        int cleared_lines = check_line(&last_line_index);
+        move_board_down(last_line_index, cleared_lines);
+        check_lost();
+        player.piece = player.next_piece;
+        player_new_piece();
+        bb_to_board();
+      }
+      print_screen();
+      refresh();
+      usleep(10000000 / FRAME_RATE);
     }
-    print_screen();
-    refresh();
-    usleep(10000000 / FRAME_RATE);
+
+    while (game_state == LOST) {
+      clear_screen();
+      print_screen();
+      printw("\nGAME OVER\n");
+      printw("Press 'r' to restart");
+      refresh();
+      usleep(10000000 / FRAME_RATE);
+    }
   }
 
   pthread_mutex_destroy(&mutex_positions);

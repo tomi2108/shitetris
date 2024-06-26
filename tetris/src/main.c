@@ -105,8 +105,7 @@ void set_player_piece() {
 }
 
 void get_piece(int *r) {
-  // int random = rand() % 7;
-  int random = 1;
+  int random = rand() % 7;
   if (r == NULL) {
     r = &random;
     player.piece = random;
@@ -556,9 +555,9 @@ int check_line(int *index) {
 void move_board_down(int row_index, int rows) {
   if (rows == 0)
     return;
-  for (int i = row_index; i >= 0; i++) {
+  for (int i = row_index; i >= 0; i--) {
     for (int j = 0; j < COLUMNS; j++) {
-      board[i][j] = i + rows >= ROWS ? 0 : board[i + rows][j];
+      board[i][j] = (i - rows) > 0 ? board[i - rows][j] : 0;
     }
   }
 };
@@ -589,7 +588,7 @@ int main(int argc, char *argv[]) {
       update_board();
       int last_line_index = 0;
       int cleared_lines = check_line(&last_line_index);
-      // move_board_down(last_line_index, cleared_lines);
+      move_board_down(last_line_index, cleared_lines);
     }
     print_board();
     refresh();

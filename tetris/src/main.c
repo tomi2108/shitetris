@@ -8,8 +8,8 @@
 #include <unistd.h>
 
 #define ROWS 20
-#define COLUMNS 15
-#define FRAME_RATE 8
+#define COLUMNS 16
+#define FRAME_RATE 60
 #define BOUNDING_BOX_CENTER 10
 
 typedef enum { LEFT, RIGHT, DOWN } move_t;
@@ -56,7 +56,9 @@ void print_board() {
     for (int j = 0; j < COLUMNS; j++) {
       if (board[i][j] == 0) {
         printw("  ");
-      } else {
+      } else if (board[i][j] == 1) {
+        printw("[]");
+      } else if (board[i][j] == 2) {
         printw("[]");
       }
     }
@@ -103,7 +105,8 @@ void set_player_piece() {
 }
 
 void get_piece(int *r) {
-  int random = rand() % 7;
+  // int random = rand() % 7;
+  int random = 1;
   if (r == NULL) {
     r = &random;
     player.piece = random;
@@ -534,17 +537,18 @@ int check_line(int *index) {
   *index = 0;
   for (int i = 0; i < ROWS; i++) {
     int is_full = 1;
-    for (int j = 0; j < COLS; j++) {
-      if (board[i][j] != 1)
+    for (int j = 0; j < COLUMNS; j++) {
+      if (board[i][j] != 1) {
         is_full = 0;
-    }
-    if (is_full) {
-      for (int j = 0; j < COLS; j++) {
-        board[i][j] = 0;
       }
-      *index = i;
-      cleared++;
     }
+    if (is_full == 0)
+      continue;
+    for (int j = 0; j < COLUMNS; j++) {
+      board[i][j] = 0;
+    }
+    *index = i;
+    cleared++;
   }
   return cleared;
 };
@@ -553,7 +557,7 @@ void move_board_down(int row_index, int rows) {
   if (rows == 0)
     return;
   for (int i = row_index; i >= 0; i++) {
-    for (int j = 0; j < COLS; j++) {
+    for (int j = 0; j < COLUMNS; j++) {
       board[i][j] = i + rows >= ROWS ? 0 : board[i + rows][j];
     }
   }
@@ -581,15 +585,15 @@ int main(int argc, char *argv[]) {
     update_board();
     if (colided) {
       set_player_piece();
-      int index = 0;
-      int cleared_lines = check_line(&index);
-      move_board_down(index, cleared_lines);
       player_intialize();
       update_board();
+      int last_line_index = 0;
+      int cleared_lines = check_line(&last_line_index);
+      // move_board_down(last_line_index, cleared_lines);
     }
     print_board();
     refresh();
-    usleep(1000000 / FRAME_RATE);
+    usleep(10000000 / FRAME_RATE);
   }
 
   pthread_mutex_destroy(&mutex_positions);

@@ -11,15 +11,19 @@
 #define COLUMNS 16
 #define FRAME_RATE 60
 #define BOUNDING_BOX_CENTER 10
+#define POINTS_PER_LINE 100
+#define DEFAULT_ROTATION NORTH
 
 typedef enum { LEFT, RIGHT, DOWN } move_t;
 typedef enum { NORTH, EAST, SOUTH, WEST } rotation_t;
 
 typedef struct {
-  int positions[2];
+  int position[2];
   int bounding_box[16];
   rotation_t rotation;
   int piece;
+  int next_piece;
+  int score;
 } player_t;
 
 t_log *logger;
@@ -39,14 +43,253 @@ int get_block_row_col(int block_index, int *row, int *col) {
   int bb_center_row = BOUNDING_BOX_CENTER / 4;
   int offset_col = bb_center_col - bb_col;
   int offset_row = bb_center_row - bb_row;
-  int block_col = player.positions[1] - offset_col;
-  int block_row = player.positions[0] - offset_row;
+  int block_col = player.position[1] - offset_col;
+  int block_row = player.position[0] - offset_row;
   *row = block_row;
   *col = block_col;
   return 1;
 }
 
-void print_board() {
+void get_piece(int *r, rotation_t rotation, int buffer[16]) {
+  int random = rand() % 7;
+  if (r == NULL) {
+    r = &player.piece;
+    player.next_piece = random;
+  }
+  switch (*r) {
+  case 0: {
+    buffer[1] = 1;
+    buffer[2] = 1;
+    buffer[5] = 1;
+    buffer[6] = 1;
+    break;
+  }
+  case 1: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      buffer[7] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[2] = 1;
+      buffer[6] = 1;
+      buffer[10] = 1;
+      buffer[14] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[8] = 1;
+      buffer[9] = 1;
+      buffer[10] = 1;
+      buffer[11] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[9] = 1;
+      buffer[13] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  case 2: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[0] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[1] = 1;
+      buffer[2] = 1;
+      buffer[5] = 1;
+      buffer[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[10] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[9] = 1;
+      buffer[8] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  case 3: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[2] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[10] = 1;
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[8] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[0] = 1;
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[9] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  case 4: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[1] = 1;
+      buffer[2] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      buffer[10] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[1] = 1;
+      buffer[2] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      buffer[10] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  case 5: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[0] = 1;
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[4] = 1;
+      buffer[8] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[0] = 1;
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[4] = 1;
+      buffer[8] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  case 6: {
+    switch (rotation) {
+    case NORTH: {
+      buffer[1] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case EAST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      buffer[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      buffer[9] = 1;
+      buffer[4] = 1;
+      buffer[5] = 1;
+      buffer[6] = 1;
+      break;
+    }
+    case WEST: {
+      buffer[1] = 1;
+      buffer[5] = 1;
+      buffer[4] = 1;
+      buffer[9] = 1;
+      break;
+    }
+    }
+    break;
+  }
+  }
+}
+
+void print_screen() {
+  printw("\n");
+  printw("SCORE: %04d", player.score);
+
+  printw("\n");
+  printw("NEXT PIECE:");
+  printw("\n");
+  int piece_preview[16];
+  for (int i = 0; i < 16; i++) {
+    piece_preview[i] = 0;
+  }
+  get_piece(&player.next_piece, DEFAULT_ROTATION, piece_preview);
+
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < 4; j++) {
+      int index = i * 4 + j;
+      if (piece_preview[index] == 1) {
+        printw("[]");
+      } else {
+        printw("  ");
+      }
+    }
+    printw("\n");
+  }
+
   for (int j = 0; j < COLUMNS + 1; j++) {
     printw("__");
   }
@@ -68,14 +311,14 @@ void print_board() {
   for (int j = 0; j < COLUMNS + 1; j++) {
     printw("__");
   }
-  printw("\n");
 }
 void clear_screen() {
   clear();
   refresh();
 }
 
-void reset_board() {
+void reset_game() {
+  player.score = 0;
   for (int i = 0; i < ROWS; i++) {
     for (int j = 0; j < COLUMNS; j++) {
       board[i][j] = 0;
@@ -83,7 +326,7 @@ void reset_board() {
   }
 }
 
-void update_board() {
+void bb_to_board() {
   for (int i = 0; i < 16; i++) {
     int block_col = 0;
     int block_row = 0;
@@ -104,221 +347,6 @@ void set_player_piece() {
   }
 }
 
-void get_piece(int *r) {
-  int random = rand() % 7;
-  if (r == NULL) {
-    r = &random;
-    player.piece = random;
-  }
-  switch (*r) {
-  case 0: {
-    player.bounding_box[1] = 1;
-    player.bounding_box[2] = 1;
-    player.bounding_box[5] = 1;
-    player.bounding_box[6] = 1;
-    break;
-  }
-  case 1: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      player.bounding_box[7] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[2] = 1;
-      player.bounding_box[6] = 1;
-      player.bounding_box[10] = 1;
-      player.bounding_box[14] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[8] = 1;
-      player.bounding_box[9] = 1;
-      player.bounding_box[10] = 1;
-      player.bounding_box[11] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[9] = 1;
-      player.bounding_box[13] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  case 2: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[0] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[2] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[9] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[10] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[9] = 1;
-      player.bounding_box[8] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  case 3: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[2] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[10] = 1;
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[9] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[8] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[0] = 1;
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[9] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  case 4: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[2] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      player.bounding_box[10] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[2] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      player.bounding_box[10] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  case 5: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[0] = 1;
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[8] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[0] = 1;
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[8] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  case 6: {
-    switch (player.rotation) {
-    case NORTH: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case EAST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      player.bounding_box[9] = 1;
-      break;
-    }
-    case SOUTH: {
-      player.bounding_box[9] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[6] = 1;
-      break;
-    }
-    case WEST: {
-      player.bounding_box[1] = 1;
-      player.bounding_box[5] = 1;
-      player.bounding_box[4] = 1;
-      player.bounding_box[9] = 1;
-      break;
-    }
-    }
-    break;
-  }
-  }
-}
-
 void reset_bounding_box() {
   for (int i = 0; i < 16; i++) {
     int block_col = 0;
@@ -330,12 +358,12 @@ void reset_bounding_box() {
   }
 }
 
-void player_intialize() {
-  player.rotation = NORTH;
-  player.positions[0] = 2;
-  player.positions[1] = COLUMNS / 2;
+void player_new_piece() {
+  player.rotation = DEFAULT_ROTATION;
+  player.position[0] = 2;
+  player.position[1] = COLUMNS / 2;
   reset_bounding_box();
-  get_piece(NULL);
+  get_piece(NULL, player.rotation, player.bounding_box);
 }
 
 void player_rotate(move_t m) {
@@ -386,7 +414,7 @@ void player_rotate(move_t m) {
   default:
     break;
   }
-  get_piece(&player.piece);
+  get_piece(&player.piece, player.rotation, player.bounding_box);
   pthread_mutex_unlock(&mutex_positions);
 }
 
@@ -425,7 +453,7 @@ int player_move(move_t m) {
           continue;
         board[prev_row][prev_col] = 0;
       }
-      player.positions[1]--;
+      player.position[1]--;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -464,7 +492,7 @@ int player_move(move_t m) {
           continue;
         board[block_row][block_col] = 0;
       }
-      player.positions[1]++;
+      player.position[1]++;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -503,7 +531,7 @@ int player_move(move_t m) {
           continue;
         board[prev_row][prev_col] = 0;
       }
-      player.positions[0]++;
+      player.position[0]++;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -547,6 +575,7 @@ int check_line(int *index) {
       board[i][j] = 0;
     }
     *index = i;
+    player.score += POINTS_PER_LINE;
     cleared++;
   }
   return cleared;
@@ -572,25 +601,27 @@ int main(int argc, char *argv[]) {
   noecho();
   cbreak();
 
-  player_intialize();
+  player_new_piece();
   pthread_t input_thread;
   pthread_create(&input_thread, NULL, &user_input, NULL);
   pthread_detach(input_thread);
 
-  reset_board();
+  player.piece = rand() % 7;
+  reset_game();
   while (1) {
     clear_screen();
     int colided = player_move(DOWN);
-    update_board();
+    bb_to_board();
     if (colided) {
       set_player_piece();
-      player_intialize();
-      update_board();
+      player.piece = player.next_piece;
+      player_new_piece();
+      bb_to_board();
       int last_line_index = 0;
       int cleared_lines = check_line(&last_line_index);
       move_board_down(last_line_index, cleared_lines);
     }
-    print_board();
+    print_screen();
     refresh();
     usleep(10000000 / FRAME_RATE);
   }

@@ -1,7 +1,5 @@
-#include <commons/collections/list.h>
 #include <commons/log.h>
 #include <curses.h>
-#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,13 +9,18 @@
 
 #define ROWS 20
 #define COLUMNS 15
-#define FRAME_RATE 5
-
-typedef struct {
-  int positions[4][2];
-} player_t;
+#define FRAME_RATE 8
+#define BOUNDING_BOX_CENTER 10
 
 typedef enum { LEFT, RIGHT, DOWN } move_t;
+typedef enum { NORTH, EAST, SOUTH, WEST } rotation_t;
+
+typedef struct {
+  int positions[2];
+  int bounding_box[16];
+  rotation_t rotation;
+  int piece;
+} player_t;
 
 t_log *logger;
 
@@ -25,6 +28,23 @@ int board[ROWS][COLUMNS];
 player_t player;
 
 pthread_mutex_t mutex_positions;
+
+int get_block_row_col(int block_index, int *row, int *col) {
+  if (player.bounding_box[block_index] == 0)
+    return 0;
+
+  int bb_col = block_index % 4;
+  int bb_row = block_index / 4;
+  int bb_center_col = BOUNDING_BOX_CENTER % 4;
+  int bb_center_row = BOUNDING_BOX_CENTER / 4;
+  int offset_col = bb_center_col - bb_col;
+  int offset_row = bb_center_row - bb_row;
+  int block_col = player.positions[1] - offset_col;
+  int block_row = player.positions[0] - offset_row;
+  *row = block_row;
+  *col = block_col;
+  return 1;
+}
 
 void print_board() {
   for (int j = 0; j < COLUMNS + 1; j++) {
@@ -62,10 +82,13 @@ void reset_board() {
 }
 
 void update_board() {
-  for (int i = 0; i < 4; i++) {
-    int row = player.positions[i][0];
-    int col = player.positions[i][1];
-    board[row][col] = 2;
+  for (int i = 0; i < 16; i++) {
+    int block_col = 0;
+    int block_row = 0;
+    int res = get_block_row_col(i, &block_row, &block_col);
+    if (res == 1) {
+      board[block_row][block_col] = 2;
+    }
   }
 }
 
@@ -79,146 +102,289 @@ void set_player_piece() {
   }
 }
 
-void get_piece(int buffer[4][2]) {
-  int i_row = 0;
-  int i_col = COLUMNS / 2;
-  int r = rand() % 8;
-  switch (r) {
+void get_piece(int *r) {
+  int random = rand() % 7;
+  if (r == NULL) {
+    r = &random;
+    player.piece = random;
+  }
+  switch (*r) {
   case 0: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row + 1;
-    buffer[1][1] = i_col;
-
-    buffer[2][0] = i_row;
-    buffer[2][1] = i_col + 1;
-
-    buffer[3][0] = i_row + 1;
-    buffer[3][1] = i_col + 1;
+    player.bounding_box[1] = 1;
+    player.bounding_box[2] = 1;
+    player.bounding_box[5] = 1;
+    player.bounding_box[6] = 1;
     break;
   }
   case 1: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row + 1;
-    buffer[1][1] = i_col;
-
-    buffer[2][0] = i_row + 2;
-    buffer[2][1] = i_col;
-
-    buffer[3][0] = i_row + 3;
-    buffer[3][1] = i_col;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      player.bounding_box[7] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[2] = 1;
+      player.bounding_box[6] = 1;
+      player.bounding_box[10] = 1;
+      player.bounding_box[14] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[8] = 1;
+      player.bounding_box[9] = 1;
+      player.bounding_box[10] = 1;
+      player.bounding_box[11] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[9] = 1;
+      player.bounding_box[13] = 1;
+      break;
+    }
+    }
     break;
   }
   case 2: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row;
-    buffer[1][1] = i_col + 1;
-
-    buffer[2][0] = i_row + 1;
-    buffer[2][1] = i_col;
-
-    buffer[3][0] = i_row + 2;
-    buffer[3][1] = i_col;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[0] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[2] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[10] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[9] = 1;
+      player.bounding_box[8] = 1;
+      break;
+    }
+    }
     break;
   }
   case 3: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row;
-    buffer[1][1] = i_col - 1;
-
-    buffer[2][0] = i_row + 1;
-    buffer[2][1] = i_col;
-
-    buffer[3][0] = i_row + 2;
-    buffer[3][1] = i_col;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[2] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[10] = 1;
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[8] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[0] = 1;
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[9] = 1;
+      break;
+    }
+    }
     break;
   }
   case 4: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row + 1;
-    buffer[1][1] = i_col;
-
-    buffer[2][0] = i_row + 1;
-    buffer[2][1] = i_col + 1;
-
-    buffer[3][0] = i_row + 2;
-    buffer[3][1] = i_col + 1;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[2] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      player.bounding_box[10] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[2] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      player.bounding_box[10] = 1;
+      break;
+    }
+    }
     break;
   }
   case 5: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row + 1;
-    buffer[1][1] = i_col;
-
-    buffer[2][0] = i_row + 1;
-    buffer[2][1] = i_col - 1;
-
-    buffer[3][0] = i_row + 2;
-    buffer[3][1] = i_col - 1;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[0] = 1;
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[8] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[0] = 1;
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[8] = 1;
+      break;
+    }
+    }
     break;
   }
   case 6: {
-    buffer[0][0] = i_row;
-    buffer[0][1] = i_col;
-
-    buffer[1][0] = i_row + 1;
-    buffer[1][1] = i_col;
-
-    buffer[2][0] = i_row + 1;
-    buffer[2][1] = i_col - 1;
-
-    buffer[3][0] = i_row + 2;
-    buffer[3][1] = i_col;
+    switch (player.rotation) {
+    case NORTH: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case EAST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      player.bounding_box[9] = 1;
+      break;
+    }
+    case SOUTH: {
+      player.bounding_box[9] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[6] = 1;
+      break;
+    }
+    case WEST: {
+      player.bounding_box[1] = 1;
+      player.bounding_box[5] = 1;
+      player.bounding_box[4] = 1;
+      player.bounding_box[9] = 1;
+      break;
+    }
+    }
     break;
   }
   }
 }
 
-void player_intialize() { get_piece(player.positions); }
+void reset_bounding_box() {
+  for (int i = 0; i < 16; i++) {
+    int block_col = 0;
+    int block_row = 0;
+    int res = get_block_row_col(i, &block_row, &block_col);
+    if (res == 1)
+      board[block_row][block_col] = 0;
+    player.bounding_box[i] = 0;
+  }
+}
+
+void player_intialize() {
+  player.rotation = NORTH;
+  player.positions[0] = 2;
+  player.positions[1] = COLUMNS / 2;
+  reset_bounding_box();
+  get_piece(NULL);
+}
 
 void player_rotate(move_t m) {
-  double PI = 3.14159265358979323846;
-  pthread_mutex_lock(&mutex_positions);
+  reset_bounding_box();
   switch (m) {
   case RIGHT: {
-    for (int i = 0; i < 4; i++) {
-      int row = player.positions[i][0];
-      int col = player.positions[i][1];
-      int row_origin = player.positions[2][0];
-      int col_origin = player.positions[2][1];
-      int row_0 = row - row_origin;
-      int col_0 = col - col_origin;
-      double row_rot1 = col_0 * cos(PI);
-      double row_rot2 = row_0 * sin(PI);
-      double col_rot1 = col_0 * sin(PI);
-      double col_rot2 = row_0 * cos(PI);
-      int new_row = floor(row_rot1 - row_rot2) + row_origin;
-      int new_col = ceil(col_rot1 + col_rot2) + col_origin;
-      if (new_row != row || new_col != col) {
-        board[row][col] = 0;
-      }
-      player.positions[i][0] = new_row;
-      player.positions[i][1] = new_col;
+    switch (player.rotation) {
+    case NORTH: {
+      player.rotation = EAST;
+      break;
+    }
+    case EAST: {
+      player.rotation = SOUTH;
+      break;
+    }
+    case SOUTH: {
+      player.rotation = WEST;
+      break;
+    }
+    case WEST: {
+      player.rotation = NORTH;
+      break;
+    }
     }
     break;
   }
   case LEFT: {
+    switch (player.rotation) {
+    case NORTH: {
+      player.rotation = WEST;
+      break;
+    }
+    case EAST: {
+      player.rotation = NORTH;
+      break;
+    }
+    case SOUTH: {
+      player.rotation = EAST;
+      break;
+    }
+    case WEST: {
+      player.rotation = SOUTH;
+      break;
+    }
+    }
     break;
   }
   default:
     break;
   }
+  get_piece(&player.piece);
   pthread_mutex_unlock(&mutex_positions);
 }
 
@@ -227,25 +393,37 @@ int player_move(move_t m) {
   switch (m) {
   case LEFT: {
     int min_col = COLUMNS;
-    for (int i = 0; i < 4; i++) {
-      if (player.positions[i][1] < min_col)
-        min_col = player.positions[i][1];
+    for (int i = 0; i < 16; i++) {
+      int block_col = 0;
+      int block_row = 0;
+      int res = get_block_row_col(i, &block_row, &block_col);
+      if (res == 0)
+        continue;
+
+      if (block_col < min_col)
+        min_col = block_col;
     }
     if (min_col > 0) {
-      for (int i = 0; i < 4; i++) {
-        int row = player.positions[i][0];
-        int col = player.positions[i][1];
-        if (board[row][col - 1] == 1) {
+      for (int i = 0; i < 16; i++) {
+        int block_col = 0;
+        int block_row = 0;
+        int res = get_block_row_col(i, &block_row, &block_col);
+        if (res == 0)
+          continue;
+        if (board[block_row][block_col - 1] == 1) {
           pthread_mutex_unlock(&mutex_positions);
           return 1;
         }
       }
-      for (int i = 0; i < 4; i++) {
-        int prev_row = player.positions[i][0];
-        int prev_col = player.positions[i][1];
-        player.positions[i][1]--;
+      for (int i = 0; i < 16; i++) {
+        int prev_row = 0;
+        int prev_col = 0;
+        int res = get_block_row_col(i, &prev_row, &prev_col);
+        if (res == 0)
+          continue;
         board[prev_row][prev_col] = 0;
       }
+      player.positions[1]--;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -254,25 +432,37 @@ int player_move(move_t m) {
 
   case RIGHT: {
     int max_col = 0;
-    for (int i = 0; i < 4; i++) {
-      if (player.positions[i][1] > max_col)
-        max_col = player.positions[i][1];
+    for (int i = 0; i < 16; i++) {
+      int block_col = 0;
+      int block_row = 0;
+      int res = get_block_row_col(i, &block_row, &block_col);
+      if (res == 0)
+        continue;
+      if (block_col > max_col)
+        max_col = block_col;
     }
     if (max_col < COLUMNS - 1) {
-      for (int i = 0; i < 4; i++) {
-        int row = player.positions[i][0];
-        int col = player.positions[i][1];
-        if (board[row][col + 1] == 1) {
+      for (int i = 0; i < 16; i++) {
+        int block_col = 0;
+        int block_row = 0;
+        int res = get_block_row_col(i, &block_row, &block_col);
+        if (res == 0)
+          continue;
+
+        if (board[block_row][block_col + 1] == 1) {
           pthread_mutex_unlock(&mutex_positions);
           return 1;
         }
       }
-      for (int i = 0; i < 4; i++) {
-        int prev_row = player.positions[i][0];
-        int prev_col = player.positions[i][1];
-        player.positions[i][1]++;
-        board[prev_row][prev_col] = 0;
+      for (int i = 0; i < 16; i++) {
+        int block_col = 0;
+        int block_row = 0;
+        int res = get_block_row_col(i, &block_row, &block_col);
+        if (res == 0)
+          continue;
+        board[block_row][block_col] = 0;
       }
+      player.positions[1]++;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -281,25 +471,37 @@ int player_move(move_t m) {
 
   case DOWN: {
     int max_row = 0;
-    for (int i = 0; i < 4; i++) {
-      if (player.positions[i][0] > max_row)
-        max_row = player.positions[i][0];
+    for (int i = 0; i < 16; i++) {
+      int block_col = 0;
+      int block_row = 0;
+      int res = get_block_row_col(i, &block_row, &block_col);
+      if (res == 0)
+        continue;
+
+      if (block_row > max_row)
+        max_row = block_row;
     }
     if (max_row < ROWS - 1) {
-      for (int i = 0; i < 4; i++) {
-        int row = player.positions[i][0];
-        int col = player.positions[i][1];
-        if (board[row + 1][col] == 1) {
+      for (int i = 0; i < 16; i++) {
+        int block_col = 0;
+        int block_row = 0;
+        int res = get_block_row_col(i, &block_row, &block_col);
+        if (res == 0)
+          continue;
+        if (board[block_row + 1][block_col] == 1) {
           pthread_mutex_unlock(&mutex_positions);
           return 1;
         }
       }
-      for (int i = 0; i < 4; i++) {
-        int prev_row = player.positions[i][0];
-        int prev_col = player.positions[i][1];
-        player.positions[i][0]++;
+      for (int i = 0; i < 16; i++) {
+        int prev_col = 0;
+        int prev_row = 0;
+        int res = get_block_row_col(i, &prev_row, &prev_col);
+        if (res == 0)
+          continue;
         board[prev_row][prev_col] = 0;
       }
+      player.positions[0]++;
       pthread_mutex_unlock(&mutex_positions);
       return 0;
     }
@@ -327,11 +529,41 @@ void *user_input() {
   }
 }
 
+int check_line(int *index) {
+  int cleared = 0;
+  *index = 0;
+  for (int i = 0; i < ROWS; i++) {
+    int is_full = 1;
+    for (int j = 0; j < COLS; j++) {
+      if (board[i][j] != 1)
+        is_full = 0;
+    }
+    if (is_full) {
+      for (int j = 0; j < COLS; j++) {
+        board[i][j] = 0;
+      }
+      *index = i;
+      cleared++;
+    }
+  }
+  return cleared;
+};
+
+void move_board_down(int row_index, int rows) {
+  if (rows == 0)
+    return;
+  for (int i = row_index; i >= 0; i++) {
+    for (int j = 0; j < COLS; j++) {
+      board[i][j] = i + rows >= ROWS ? 0 : board[i + rows][j];
+    }
+  }
+};
+
 int main(int argc, char *argv[]) {
   logger = log_create("tetris.log", "TETRIS", 1, LOG_LEVEL_DEBUG);
   pthread_mutex_init(&mutex_positions, NULL);
+
   srand(time(NULL));
-  reset_board();
   initscr();
   clear();
   noecho();
@@ -342,15 +574,19 @@ int main(int argc, char *argv[]) {
   pthread_create(&input_thread, NULL, &user_input, NULL);
   pthread_detach(input_thread);
 
+  reset_board();
   while (1) {
     clear_screen();
     int colided = player_move(DOWN);
+    update_board();
     if (colided) {
       set_player_piece();
+      int index = 0;
+      int cleared_lines = check_line(&index);
+      move_board_down(index, cleared_lines);
       player_intialize();
+      update_board();
     }
-
-    update_board();
     print_board();
     refresh();
     usleep(1000000 / FRAME_RATE);

@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #define ROWS 20
-#define COLUMNS 16
+#define COLUMNS 10
 #define FRAME_RATE 60
 #define BOUNDING_BOX_CENTER 10
 #define POINTS_PER_LINE 100
@@ -560,6 +560,12 @@ void *user_input() {
     if (game_state == RUNNING) {
       if (c == 'h' || c == 'H')
         player_move(LEFT);
+      if (c == 'v' || c == 'V')
+      {
+        for (int i = 0; i<ROWS; i++) {
+        player_move(DOWN);
+        }
+      }
       if (c == 'j' || c == 'J')
         player_move(DOWN);
       if (c == 'k' || c == 'K')
@@ -601,7 +607,7 @@ int check_line(int *index) {
 
 void check_lost() {
   for (int j = 0; j < COLUMNS; j++) {
-    if (board[0][j] == 1) {
+    if (board[0][j] != 0) {
       game_state = LOST;
       return;
     }
@@ -644,9 +650,9 @@ int main(int argc, char *argv[]) {
         int last_line_index = 0;
         int cleared_lines = check_line(&last_line_index);
         move_board_down(last_line_index, cleared_lines);
+        check_lost();
         player.piece = player.next_piece;
         player_new_piece();
-        check_lost();
         bb_to_board();
       }
       print_screen();
